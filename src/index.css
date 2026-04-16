@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Force cursor:none everywhere — overrides Tailwind's cursor-pointer ─── */
+/* Only on true pointer (mouse) devices — never on touch/mobile              */
+@media (pointer: fine) and (min-width: 1025px) {
+  *, *::before, *::after {
+    cursor: none !important;
+  }
+}
+
+/* ─── MOBILE / TOUCH: always restore system cursor, never hide it ─── */
+@media (pointer: coarse), (max-width: 1024px) {
+  *, *::before, *::after {
+    cursor: auto !important;
+  }
+  .custom-cursor-dot {
+    display: none !important;
+  }
+}
+
+/* ─── Spotify / third-party iframes: always show system cursor inside ─── */
+/* The custom cursor can't enter an iframe anyway (cross-origin boundary),  */
+/* but this ensures the host page doesn't accidentally hide it at the edge  */
+iframe {
+  cursor: auto !important;
+}
+
+/* ─── VIDEO ACTIVE: restore system cursor, hide custom dot ─── */
+/* Applied via html.video-playing class while lightbox is open  */
+html.video-playing *,
+html.video-playing *::before,
+html.video-playing *::after {
+  cursor: auto !important;
+}
+html.video-playing .custom-cursor-dot {
+  display: none !important;
+}
+
+/* ─── Hover scale — pure transform, no layout shift ─── */
+/* Only active on true pointer (mouse) devices — disabled on touch/mobile   */
+
+/* For inline/text elements (nav links, logo) */
+.hs {
+  display: inline-block;
+  will-change: transform;
+}
+@media (pointer: fine) and (min-width: 1025px) {
+  .hs {
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+  .hs:hover {
+    transform: scale(1.05);
+  }
+}
+
+/* For block headings — transform-origin center so it scales from the middle */
+.hs-block {
+  display: block;
+  will-change: transform;
+  transform-origin: center center;
+}
+@media (pointer: fine) and (min-width: 1025px) {
+  .hs-block {
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+  .hs-block:hover {
+    transform: scale(1.05);
+  }
+}
+
+/* For cards / image containers — scales the whole box outward */
+.hs-card {
+  will-change: transform;
+  transform-origin: center center;
+  position: relative;
+  z-index: 1;
+}
+@media (pointer: fine) and (min-width: 1025px) {
+  .hs-card {
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+  .hs-card:hover {
+    transform: scale(1.05);
+    z-index: 10;
+  }
+}
