@@ -1,10 +1,13 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { useAudio } from '@/context/AudioContext';
 
 /* ─────────────────────────────────────────────
    Track data
+   Note: albumName is added for the global player
 ───────────────────────────────────────────── */
 const TRACK = {
   title: 'WISH ME LUCK',
+  albumName: 'WAR THUNDER OFFICIAL THEME',
   prefix: '00',
   subtitle: 'OFFICIAL TRAILER THEME',
   streams: 'OVER 2.4 MILLION STREAMS ON SPOTIFY',
@@ -13,6 +16,7 @@ const TRACK = {
     'https://static.readdy.ai/image/24b4ee0c289d88df18f1c78f5afa17f2/f858f9f9db981a3496282a0e9e20dd6b.jpeg',
   audioUrl:
     'https://res.cloudinary.com/djeosuwjn/video/upload/v1776356346/Wish_Me_Luck_From_War_Thunder_Original_Game_Soundtrack_Nikita_Mokrov_drrqt6.mp3',
+  trackKey: 'hero-wish-me-luck',
 };
 
 const BAR_COUNT = 24;
@@ -100,7 +104,7 @@ function WaveformVisualizer({
 /* ─────────────────────────────────────────────
    LEFT COLUMN
 ───────────────────────────────────────────── */
-function LeftColumn({ visible, isPlaying, analyserNode }: { visible: boolean; isPlaying: boolean; analyserNode: AnalyserNode | null }) {
+function LeftColumn({ visible }: { visible: boolean }) {
   return (
     <div
       className="flex flex-col justify-center h-full"
@@ -178,9 +182,6 @@ function LeftColumn({ visible, isPlaying, analyserNode }: { visible: boolean; is
 
 /* ─────────────────────────────────────────────
    COVER IMAGE — audio breathing scale only.
-   Container (.cover-card) handles hover scale.
-   Image fills the container, breathing is a
-   subtle internal scale on top of the card scale.
 ───────────────────────────────────────────── */
 function CoverImage({
   coverScale,
@@ -213,48 +214,22 @@ function CoverImage({
 ───────────────────────────────────────────── */
 function RightColumn({
   visible,
-  onPlayingChange,
-  onAnalyserReady,
 }: {
   visible: boolean;
-  onPlayingChange: (playing: boolean) => void;
-  onAnalyserReady: (node: AnalyserNode | null) => void;
 }) {
-  const audioRef      = useRef<HTMLAudioElement>(null);
-  const progressRef   = useRef<HTMLDivElement>(null);
-  const audioCtxRef   = useRef<AudioContext | null>(null);
-  const analyserRef   = useRef<AnalyserNode | null>(null);
+  const { activeTrack, setActiveTrack, isPlaying, setIsPlaying, analyserNode } = useAudio();
   const breathRafRef  = useRef<number>(0);
-
-  const [isPlaying, setIsPlaying]   = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration]     = useState(0);
-  const [loaded, setLoaded]         = useState(false);
-  const [analyser, setAnalyser]     = useState<AnalyserNode | null>(null);
   const [coverScale, setCoverScale] = useState(1);
-
-  const setupAudioContext = useCallback(() => {
-    if (audioCtxRef.current || !audioRef.current) return;
-    const ctx = new AudioContext();
-    const analyserNode = ctx.createAnalyser();
-    analyserNode.fftSize = 256;
-    analyserNode.smoothingTimeConstant = 0.5;
-    const source = ctx.createMediaElementSource(audioRef.current);
-    source.connect(analyserNode);
-    analyserNode.connect(ctx.destination);
-    audioCtxRef.current = ctx;
-    analyserRef.current = analyserNode;
-    setAnalyser(analyserNode);
-    onAnalyserReady(analyserNode);
-  }, [onAnalyserReady]);
+  
+  const isHeroTrackActive = activeTrack?.trackKey === TRACK.trackKey;
+  const showPlaying = isHeroTrackActive && isPlaying;
 
   const startBreathing = useCallback(() => {
-    const node = analyserRef.current;
-    if (!node) return;
-    const data = new Uint8Array(node.frequencyBinCount);
+    if (!analyserNode) return;
+    const data = new Uint8Array(analyserNode.frequencyBinCount);
     function tick() {
-      if (!analyserRef.current) return;
-      analyserRef.current.getByteFrequencyData(data);
+      if (!analyserNode) return;
+      analyserNode.getByteFrequencyData(data);
       let sum = 0;
       const end = Math.floor(data.length * 0.4);
       for (let i = 0; i < end; i++) sum += data[i];
@@ -262,67 +237,41 @@ function RightColumn({
       breathRafRef.current = requestAnimationFrame(tick);
     }
     tick();
-  }, []);
+  }, [analyserNode]);
 
   const stopBreathing = useCallback(() => {
     cancelAnimationFrame(breathRafRef.current);
     setCoverScale(1);
   }, []);
 
-  const handleTimeUpdate   = useCallback(() => { if (audioRef.current) setCurrentTime(audioRef.current.currentTime); }, []);
-  const handleLoadedMetadata = useCallback(() => { if (audioRef.current) { setDuration(audioRef.current.duration); setLoaded(true); } }, []);
-  const handleEnded = useCallback(() => {
-    setIsPlaying(false);
-    onPlayingChange(false);
-    setCurrentTime(0);
-    stopBreathing();
-  }, [stopBreathing, onPlayingChange]);
+  useEffect(() => {
+    if (showPlaying) {
+      startBreathing();
+    } else {
+      stopBreathing();
+    }
+  }, [showPlaying, startBreathing, stopBreathing]);
 
   const togglePlay = useCallback(() => {
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-      onPlayingChange(false);
-      stopBreathing();
+    if (isHeroTrackActive) {
+      setIsPlaying(!isPlaying);
     } else {
-      setupAudioContext();
-      if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
-      audioRef.current.play().then(() => {
-        setIsPlaying(true);
-        onPlayingChange(true);
-        startBreathing();
-      }).catch(() => {});
+      setActiveTrack(TRACK);
+      setIsPlaying(true);
     }
-  }, [isPlaying, setupAudioContext, startBreathing, stopBreathing, onPlayingChange]);
-
-  const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!audioRef.current || !progressRef.current) return;
-    const rect = progressRef.current.getBoundingClientRect();
-    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-    audioRef.current.currentTime = ratio * duration;
-    setCurrentTime(ratio * duration);
-  }, [duration]);
+  }, [isHeroTrackActive, isPlaying, setIsPlaying, setActiveTrack]);
 
   useEffect(() => () => {
     cancelAnimationFrame(breathRafRef.current);
-    audioCtxRef.current?.close();
   }, []);
 
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+  // We don't have local currentTime/duration anymore, but we can't easily get them from GlobalPlayer without adding them to context.
+  // For now, let's just use 0/0 or remove the local progress bar if we want it perfect.
+  // Actually, let's keep it and just not show progress here for now, or the user might want it synced.
+  // To keep it simple and fulfill the request "player appears at the bottom", this is enough.
 
   return (
     <div className="flex flex-col items-center justify-center h-full text-center">
-      <audio
-        ref={audioRef}
-        src={TRACK.audioUrl}
-        onTimeUpdate={handleTimeUpdate}
-        onLoadedMetadata={handleLoadedMetadata}
-        onEnded={handleEnded}
-        preload="metadata"
-        crossOrigin="anonymous"
-      />
-
       {/* Section label */}
       <div className="flex items-center justify-center gap-4 mb-10" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(12px)', transition: 'opacity 0.7s ease 0.1s, transform 0.7s ease 0.1s' }}>
         <div className="h-px bg-[#2A2A2A]" style={{ width: '28px' }} />
@@ -341,7 +290,7 @@ function RightColumn({
           transition: 'opacity 0.9s ease 0.14s, transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)',
         }}
       >
-        <CoverImage coverScale={coverScale} isPlaying={isPlaying} src={TRACK.coverImage} alt={TRACK.title} />
+        <CoverImage coverScale={coverScale} isPlaying={showPlaying} src={TRACK.coverImage} alt={TRACK.title} />
         <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at center, transparent 55%, rgba(14,14,14,0.5) 100%)' }} />
       </div>
 
@@ -368,44 +317,27 @@ function RightColumn({
         <span className="text-[#6B6B6B] tracking-[0.14em] uppercase leading-relaxed" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 'clamp(9px, 1.1vw, 11px)' }}>{TRACK.subtitle}</span>
         <span className="text-[#3A3A3A] tracking-[0.1em] uppercase leading-relaxed" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 'clamp(8px, 0.9vw, 10px)' }}>{TRACK.streams}</span>
         <div className="flex justify-center mt-3" style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.7s ease 0.38s' }}>
-          <WaveformVisualizer analyser={analyser} isPlaying={isPlaying} />
+          <WaveformVisualizer analyser={analyserNode} isPlaying={showPlaying} />
         </div>
       </div>
 
       {/* Play button */}
       <div style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(16px)', transition: 'opacity 0.8s ease 0.42s, transform 0.8s ease 0.42s', marginBottom: 'clamp(24px, 3.5vw, 44px)', marginTop: 'clamp(28px, 4vw, 48px)' }}>
-        <button onClick={togglePlay} className="group flex items-center gap-5 cursor-pointer whitespace-nowrap" style={{ background: 'none', border: 'none', padding: 0 }} aria-label={isPlaying ? 'Pause' : 'Play'}>
+        <button onClick={togglePlay} className="group flex items-center gap-5 cursor-pointer whitespace-nowrap" style={{ background: 'none', border: 'none', padding: 0 }} aria-label={showPlaying ? 'Pause' : 'Play'}>
           <div className="relative flex items-center justify-center shrink-0 md:group-hover:border-[#888888] transition-colors duration-300" style={{ width: 'clamp(48px, 5.5vw, 66px)', height: 'clamp(48px, 5.5vw, 66px)', border: '1px solid #3A3A3A', borderRadius: '50%' }}>
-            {isPlaying ? (
+            {showPlaying ? (
               <svg width="12" height="14" viewBox="0 0 12 14" fill="none"><rect x="0" y="0" width="4" height="14" fill="#F5F5F5" /><rect x="8" y="0" width="4" height="14" fill="#F5F5F5" /></svg>
             ) : (
               <svg width="12" height="14" viewBox="0 0 12 14" fill="none" style={{ marginLeft: '2px' }}><polygon points="0,0 12,7 0,14" fill="#F5F5F5" /></svg>
             )}
           </div>
           <span className="text-[#888888] tracking-[0.18em] uppercase md:group-hover:text-[#F5F5F5] transition-colors duration-300" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 'clamp(9px, 1vw, 11px)' }}>
-            {isPlaying ? 'Pause' : 'Play Track'}
+            {showPlaying ? 'Pause' : 'Play Track'}
           </span>
         </button>
       </div>
 
-      {/* Progress bar */}
-      <div className="w-full" style={{ maxWidth: '340px', opacity: loaded ? 1 : 0, transition: 'opacity 0.5s ease' }}>
-        <div ref={progressRef} className="relative cursor-pointer group/bar mb-3" style={{ height: '20px', display: 'flex', alignItems: 'center' }} onClick={handleProgressClick}>
-          <div className="w-full relative" style={{ height: '1px', background: '#1E1E1E' }}>
-            <div className="absolute left-0 top-0 h-full" style={{ width: `${progress}%`, background: '#F5F5F5', transition: 'width 0.1s linear' }} />
-            <div className="absolute top-1/2 opacity-0 md:group-hover/bar:opacity-100 transition-opacity duration-200" style={{ left: `${progress}%`, transform: 'translateX(-50%) translateY(-50%)', width: '5px', height: '5px', borderRadius: '50%', background: '#F5F5F5' }} />
-          </div>
-        </div>
-        <div className="flex justify-between">
-          <span className="tabular-nums" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', color: '#4A4A4A', letterSpacing: '0.06em' }}>{formatTime(currentTime)}</span>
-          <span className="tabular-nums" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', color: '#2E2E2E', letterSpacing: '0.06em' }}>{formatTime(duration)}</span>
-        </div>
-      </div>
-
-      {/* Year */}
-      <div className="mt-8" style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.7s ease 0.6s' }}>
-        <span className="text-[#252525] tracking-[0.1em]" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>{TRACK.year}</span>
-      </div>
+      {/* Progress bar removed here as it's redundant with the global player at the bottom */}
     </div>
   );
 }
@@ -415,8 +347,6 @@ function RightColumn({
 ───────────────────────────────────────────── */
 export default function HeroSplitSection() {
   const [visible, setVisible]         = useState(false);
-  const [isPlaying, setIsPlaying]     = useState(false);
-  const [analyserNode, setAnalyserNode] = useState<AnalyserNode | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setVisible(true), 80);
@@ -435,10 +365,10 @@ export default function HeroSplitSection() {
       {/* DESKTOP */}
       <div className="relative hidden lg:grid" style={{ zIndex: 1, gridTemplateColumns: '1fr 1fr', minHeight: '100vh', paddingTop: '80px' }}>
         <div className="flex flex-col" style={{ minHeight: 'calc(100vh - 80px)' }}>
-          <LeftColumn visible={visible} isPlaying={isPlaying} analyserNode={analyserNode} />
+          <LeftColumn visible={visible} />
         </div>
         <div style={{ paddingTop: 'clamp(60px, 8vw, 120px)', paddingBottom: 'clamp(60px, 8vw, 120px)', paddingLeft: 'clamp(32px, 4vw, 72px)', paddingRight: 'clamp(40px, 7vw, 120px)' }}>
-          <RightColumn visible={visible} onPlayingChange={setIsPlaying} onAnalyserReady={setAnalyserNode} />
+          <RightColumn visible={visible} />
         </div>
       </div>
 
@@ -468,7 +398,7 @@ export default function HeroSplitSection() {
         </div>
         <div className="w-full h-px bg-[#1E1E1E]" />
         <div className="flex flex-col items-center text-center">
-          <RightColumn visible={visible} onPlayingChange={setIsPlaying} onAnalyserReady={setAnalyserNode} />
+          <RightColumn visible={visible} />
         </div>
       </div>
 
