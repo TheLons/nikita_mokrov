@@ -133,6 +133,7 @@ function TrailerCard({ item }: { item: TrailerItem }) {
           onClick={() => setLightboxOpen(true)}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={() => setHovered(false)}
+          onTouchEnd={() => setHovered(false)}
         >
           <img
             src={item.thumbnail}
@@ -209,6 +210,7 @@ function TrackRow({ number, title, coverImage, albumName, audioUrl, trackKey }: 
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setHovered(false)}
+      onTouchEnd={() => setHovered(false)}
       onClick={handleClick}
     >
       {/* Hover thumbnail */}
@@ -303,6 +305,12 @@ function WorkItemRow({ item, sectionId, isOpen, onToggle }: WorkItemRowProps) {
     setMousePos({ x, y });
   };
 
+  const handleCoverMouseEnter = () => {
+    if (window.matchMedia('(hover: hover)').matches) {
+      setIsHovered(true);
+    }
+  };
+
   useEffect(() => {
     if (!contentRef.current) return;
     setHeight(isOpen ? contentRef.current.scrollHeight : 0);
@@ -347,7 +355,11 @@ function WorkItemRow({ item, sectionId, isOpen, onToggle }: WorkItemRowProps) {
           className={`shrink-0 mr-5 transition-all duration-500 ${isHovered ? 'z-50' : 'z-0'}`}
           style={{ width: 'clamp(52px, 5.5vw, 72px)', height: 'clamp(52px, 5.5vw, 72px)' }}
           onMouseMove={handleMouseMove}
-          onMouseEnter={() => setIsHovered(true)}
+          onMouseEnter={handleCoverMouseEnter}
+          onTouchEnd={() => {
+            setIsHovered(false);
+            setMousePos({ x: 0, y: 0 });
+          }}
           onMouseLeave={() => {
             setIsHovered(false);
             setMousePos({ x: 0, y: 0 });
