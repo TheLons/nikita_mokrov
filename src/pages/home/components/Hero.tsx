@@ -10,9 +10,6 @@ export default function Hero() {
       {/* ── Top-right metadata ── */}
       <div className="absolute top-24 right-10 md:right-20 flex flex-col items-end gap-1" style={{ zIndex: 1 }}>
         <span className="text-[#4A4A4A] text-[11px] tracking-[0.12em] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-          Nha Trang, Vietnam
-        </span>
-        <span className="text-[#4A4A4A] text-[11px] tracking-[0.12em] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
           Available Worldwide
         </span>
       </div>
@@ -52,17 +49,6 @@ export default function Hero() {
           >
             Sound Design&nbsp;&nbsp;/&nbsp;&nbsp;Composition&nbsp;&nbsp;/&nbsp;&nbsp;Scoring
           </p>
-        </div>
-
-        {/* Year badge */}
-        <div className="mt-16 flex items-center gap-6">
-          <span className="text-[#3A3A3A] text-[11px] tracking-[0.14em] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            Est. 2015
-          </span>
-          <div className="w-16 h-px bg-[#2A2A2A]" />
-          <span className="text-[#3A3A3A] text-[11px] tracking-[0.14em] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
-            50+ Projects
-          </span>
         </div>
       </div>
 

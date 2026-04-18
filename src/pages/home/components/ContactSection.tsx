@@ -116,12 +116,6 @@ export default function ContactSection() {
                   ↗
                 </span>
               </a>
-              <span
-                className="text-[#3A3A3A] text-[11px] tracking-[0.14em] uppercase"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                Nha Trang, Vietnam — Available Worldwide
-              </span>
             </div>
           </div>
 
@@ -157,13 +151,6 @@ export default function ContactSection() {
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           Film &amp; Video Game Composer
-        </span>
-
-        <span
-          className="text-[#2E2E2E] text-[11px] tracking-[0.1em] uppercase"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          Nha Trang, Vietnam
         </span>
       </footer>
     </>

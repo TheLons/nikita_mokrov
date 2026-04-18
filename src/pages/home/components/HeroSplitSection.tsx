@@ -169,13 +169,6 @@ function LeftColumn({ visible }: { visible: boolean }) {
           Sound Design&nbsp;&nbsp;/&nbsp;&nbsp;Composition&nbsp;&nbsp;/&nbsp;&nbsp;Scoring
         </p>
       </div>
-
-      {/* Year badge */}
-      <div className="flex items-center gap-6 mt-10" style={{ opacity: visible ? 1 : 0, transition: 'opacity 0.7s ease 0.22s' }}>
-        <span className="text-[#3A3A3A] text-[11px] tracking-[0.14em] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Est. 2015</span>
-        <div className="w-16 h-px bg-[#2A2A2A]" />
-        <span className="text-[#3A3A3A] text-[11px] tracking-[0.14em] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>50+ Projects</span>
-      </div>
     </div>
   );
 }
@@ -194,18 +187,47 @@ function CoverImage({
   src: string;
   alt: string;
 }) {
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!window.matchMedia('(hover: hover)').matches) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    setMousePos({ x, y });
+  };
+
+  const finalScale = isHovered ? coverScale * 1.08 : coverScale;
+  const moveX = isHovered ? mousePos.x * 15 : 0;
+  const moveY = isHovered ? mousePos.y * 15 : 0;
+
   return (
-    <img
-      src={src}
-      alt={alt}
-      className="absolute inset-0 w-full h-full object-cover object-top"
-      style={{
-        filter: 'grayscale(10%) brightness(0.88)',
-        transform: `scale(${coverScale})`,
-        transition: isPlaying ? 'transform 0.08s linear' : 'transform 0.6s ease',
-        transformOrigin: 'center center',
+    <div 
+      className={`absolute inset-0 w-full h-full transition-all duration-500 ${isHovered ? 'z-50' : 'z-0'}`}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setMousePos({ x: 0, y: 0 });
       }}
-    />
+    >
+      <img
+        src={src}
+        alt={alt}
+        className="absolute inset-0 w-full h-full object-cover object-top"
+        style={{
+          filter: isHovered ? 'grayscale(0%) brightness(1)' : 'grayscale(10%) brightness(0.88)',
+          transform: `scale(${finalScale}) translate(${moveX}px, ${moveY}px)`,
+          boxShadow: isHovered ? '0 20px 40px rgba(0,0,0,0.6)' : 'none',
+          transition: isHovered 
+            ? (isPlaying ? 'transform 0.1s linear, box-shadow 0.3s ease' : 'transform 0.15s ease-out, box-shadow 0.3s ease') 
+            : 'transform 0.8s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.5s ease',
+          transformOrigin: 'center center',
+          borderRadius: isHovered ? '2px' : '0px',
+        }}
+      />
+    </div>
   );
 }
 
@@ -303,12 +325,7 @@ function RightColumn({
           {TRACK.title}
         </span>
       </div>
-
-      {/* Prefix */}
-      <div style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(10px)', transition: 'opacity 0.6s ease 0.22s, transform 0.6s ease 0.22s', marginBottom: '4px' }}>
-        <span className="text-[#2E2E2E] tracking-[0.14em]" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 'clamp(10px, 1vw, 12px)' }}>{TRACK.prefix}</span>
-      </div>
-
+      
       {/* Divider */}
       <div style={{ width: '24px', height: '1px', background: '#2A2A2A', marginBottom: 'clamp(16px, 2.5vw, 28px)', opacity: visible ? 1 : 0, transition: 'opacity 0.6s ease 0.32s' }} />
 
@@ -358,7 +375,6 @@ export default function HeroSplitSection() {
       <div className="hidden lg:block absolute inset-y-0 left-1/2 -translate-x-1/2" style={{ width: '1px', background: '#1E1E1E', zIndex: 2 }} />
 
       <div className="absolute top-24 right-8 lg:right-16 flex-col items-end gap-1 hidden lg:flex" style={{ zIndex: 3 }}>
-        <span className="text-[#4A4A4A] text-[11px] tracking-[0.12em] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Nha Trang, Vietnam</span>
         <span className="text-[#4A4A4A] text-[11px] tracking-[0.12em] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Available Worldwide</span>
       </div>
 
@@ -390,11 +406,6 @@ export default function HeroSplitSection() {
           </div>
           <p className="text-[#AAAAAA] uppercase tracking-[0.14em] mb-2" style={{ fontSize: '13px', fontFamily: "'Space Grotesk', sans-serif" }}>Film &amp; Game Composer</p>
           <p className="text-[#5A5A5A] tracking-[0.06em] mb-8" style={{ fontSize: '12px', fontFamily: "'Space Grotesk', sans-serif" }}>Sound Design&nbsp;&nbsp;/&nbsp;&nbsp;Composition&nbsp;&nbsp;/&nbsp;&nbsp;Scoring</p>
-          <div className="flex items-center gap-6 justify-center">
-            <span className="text-[#3A3A3A] text-[11px] tracking-[0.14em] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Est. 2015</span>
-            <div className="w-12 h-px bg-[#2A2A2A]" />
-            <span className="text-[#3A3A3A] text-[11px] tracking-[0.14em] uppercase" style={{ fontFamily: "'JetBrains Mono', monospace" }}>50+ Projects</span>
-          </div>
         </div>
         <div className="w-full h-px bg-[#1E1E1E]" />
         <div className="flex flex-col items-center text-center">

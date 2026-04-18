@@ -17,8 +17,18 @@ export default function FeaturedTrackSection() {
   const { activeTrack, setActiveTrack, isPlaying, setIsPlaying } = useAudio();
   const sectionRef = useRef<HTMLElement>(null);
   const [visible, setVisible] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
 
   const isActive = activeTrack?.trackKey === TRACK.trackKey;
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!window.matchMedia('(hover: hover)').matches) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    setMousePos({ x, y });
+  };
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -79,7 +89,7 @@ export default function FeaturedTrackSection() {
 
         {/* ── Cover Art — large, centered square ── */}
         <div
-          className="relative overflow-hidden w-full"
+          className={`relative w-full transition-all duration-500 ${isHovered ? 'z-50' : 'z-0'}`}
           style={{
             maxWidth: 'clamp(260px, 52vw, 520px)',
             aspectRatio: '1 / 1',
@@ -88,12 +98,24 @@ export default function FeaturedTrackSection() {
             transform: visible ? 'translateY(0) scale(1)' : 'translateY(24px) scale(0.97)',
             transition: 'opacity 0.9s ease 0.08s, transform 0.9s cubic-bezier(0.4,0,0.2,1) 0.08s',
           }}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => {
+            setIsHovered(false);
+            setMousePos({ x: 0, y: 0 });
+          }}
         >
           <img
             src={TRACK.coverImage}
             alt={TRACK.title}
             className="w-full h-full object-cover object-top"
-            style={{ filter: 'grayscale(10%) brightness(0.88)' }}
+            style={{ 
+              filter: isHovered ? 'grayscale(0%) brightness(1)' : 'grayscale(10%) brightness(0.88)',
+              transform: isHovered ? `scale(1.35) translate(${mousePos.x * 35}px, ${mousePos.y * 35}px)` : 'scale(1)',
+              boxShadow: isHovered ? '0 40px 80px rgba(0,0,0,0.9)' : 'none',
+              transition: isHovered ? 'transform 0.15s ease-out, box-shadow 0.3s ease' : 'transform 0.8s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.5s ease',
+              borderRadius: isHovered ? '4px' : '0px',
+            }}
           />
           {/* Subtle vignette */}
           <div

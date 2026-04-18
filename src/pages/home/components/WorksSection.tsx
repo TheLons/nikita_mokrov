@@ -292,6 +292,16 @@ interface WorkItemRowProps {
 function WorkItemRow({ item, sectionId, isOpen, onToggle }: WorkItemRowProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!window.matchMedia('(hover: hover)').matches) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    setMousePos({ x, y });
+  };
 
   useEffect(() => {
     if (!contentRef.current) return;
@@ -334,8 +344,14 @@ function WorkItemRow({ item, sectionId, isOpen, onToggle }: WorkItemRowProps) {
 
         {/* Square cover image */}
         <div
-          className="hs-card shrink-0 mr-5"
+          className={`shrink-0 mr-5 transition-all duration-500 ${isHovered ? 'z-50' : 'z-0'}`}
           style={{ width: 'clamp(52px, 5.5vw, 72px)', height: 'clamp(52px, 5.5vw, 72px)' }}
+          onMouseMove={handleMouseMove}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => {
+            setIsHovered(false);
+            setMousePos({ x: 0, y: 0 });
+          }}
         >
           <img
             src={item.coverImage}
@@ -348,7 +364,10 @@ function WorkItemRow({ item, sectionId, isOpen, onToggle }: WorkItemRowProps) {
                   ? 'grayscale(100%) brightness(0.6)'
                   : isOpen ? 'grayscale(0%) brightness(1)' : 'grayscale(100%) brightness(0.5)',
               opacity: item.dimThumbnail ? (isOpen ? 0.55 : 0.18) : 1,
-              transition: 'filter 0.4s ease, opacity 0.4s ease',
+              transform: isHovered ? `scale(1.4) translate(${mousePos.x * 15}px, ${mousePos.y * 15}px)` : 'scale(1)',
+              boxShadow: isHovered ? '0 15px 30px rgba(0,0,0,0.8)' : 'none',
+              transition: isHovered ? 'transform 0.1s ease-out, box-shadow 0.3s ease' : 'transform 0.5s ease, box-shadow 0.4s ease',
+              borderRadius: isHovered ? '2px' : '0px',
             }}
           />
         </div>
