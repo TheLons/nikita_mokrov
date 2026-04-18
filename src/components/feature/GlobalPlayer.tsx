@@ -15,6 +15,8 @@ export function GlobalPlayer() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const progressRef = useRef<HTMLDivElement>(null);
+  const pendingSeekRef = useRef(0);
+  const scrubbingRef = useRef(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isScrubbing, setIsScrubbing] = useState(false);
@@ -45,6 +47,7 @@ export function GlobalPlayer() {
     if (activeTrack) {
       setCurrentTime(0);
       setDuration(0);
+      pendingSeekRef.current = 0;
     }
   }, [activeTrack]);
 
@@ -106,47 +109,44 @@ export function GlobalPlayer() {
     const rect = progressRef.current.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const newTime = ratio * duration;
+    pendingSeekRef.current = newTime;
     setCurrentTime(newTime);
-    if (!isScrubbing) {
+    if (!scrubbingRef.current) {
       audioRef.current.currentTime = newTime;
     }
-  }, [duration, isScrubbing]);
+  }, [duration]);
 
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const commitScrub = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = pendingSeekRef.current;
+    }
+    scrubbingRef.current = false;
+    setIsScrubbing(false);
+  }, []);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    if (duration === 0) return;
+    scrubbingRef.current = true;
     setIsScrubbing(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
     seek(e.clientX);
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    setIsScrubbing(true);
-    seek(e.touches[0].clientX);
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!scrubbingRef.current) return;
+    seek(e.clientX);
   };
 
-  useEffect(() => {
-    if (!isScrubbing) return;
-
-    const handleMouseMove = (e: MouseEvent) => seek(e.clientX);
-    const handleTouchMove = (e: TouchEvent) => seek(e.touches[0].clientX);
-    
-    const handleUp = () => {
-      if (audioRef.current) {
-        audioRef.current.currentTime = currentTime;
-      }
-      setIsScrubbing(false);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleUp);
-    window.addEventListener('touchmove', handleTouchMove);
-    window.addEventListener('touchend', handleUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleUp);
-      window.removeEventListener('touchmove', handleTouchMove);
-      window.removeEventListener('touchend', handleUp);
-    };
-  }, [isScrubbing, currentTime, seek]);
+  const handlePointerUpOrCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!scrubbingRef.current) return;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* not captured */
+    }
+    commitScrub();
+  };
 
   const handleClose = () => {
     setIsPlaying(false);
@@ -176,6 +176,7 @@ export function GlobalPlayer() {
       >
         <audio
           ref={audioRef}
+          className="hidden"
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onDurationChange={handleLoadedMetadata}
@@ -184,22 +185,25 @@ export function GlobalPlayer() {
           crossOrigin="anonymous"
         />
 
-        {/* Progress bar area - YouTube Music style: thin on top */}
+        {/* Progress: h-1 as originally; pointer capture + touch-action for scrubbing */}
         <div
           ref={progressRef}
-          className="w-full relative cursor-pointer group/bar h-1"
-          style={{ background: 'rgba(255,255,255,0.05)' }}
-          onMouseDown={handleMouseDown}
-          onTouchStart={handleTouchStart}
+          className="w-full relative cursor-pointer group/bar h-1 select-none"
+          style={{ touchAction: 'none', background: 'rgba(255,255,255,0.05)' }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUpOrCancel}
+          onPointerCancel={handlePointerUpOrCancel}
         >
-          <div 
-            className="absolute left-0 top-0 h-full bg-[#F5F5F5] transition-[width] duration-100 ease-linear" 
-            style={{ width: `${progress}%`, boxShadow: '0 0 10px rgba(245,245,245,0.3)' }} 
+          <div
+            className={`pointer-events-none absolute left-0 top-0 h-full bg-[#F5F5F5] ${isScrubbing ? '' : 'transition-[width] duration-100 ease-linear'}`}
+            style={{ width: `${progress}%`, boxShadow: '0 0 10px rgba(245,245,245,0.3)' }}
           />
-          {/* Knob - only visible on hover or scrubbing */}
-          <div 
-            className={`absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-[#F5F5F5] rounded-full shadow-lg transition-opacity ${isScrubbing ? 'opacity-100 scale-110' : 'opacity-0 md:group-hover/bar:opacity-100 scale-100'}`}
-            style={{ left: `${progress}%`, marginLeft: '-6px' }}
+          <div
+            className={`pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-full bg-[#F5F5F5] shadow-lg transition-transform duration-150 ${
+              isScrubbing ? 'h-4 w-4 -ml-2 scale-100' : 'h-3.5 w-3.5 -ml-[7px] md:scale-100'
+            } max-md:opacity-100 md:opacity-0 md:group-hover/bar:opacity-100 ${isScrubbing ? '!opacity-100' : ''}`}
+            style={{ left: `${progress}%` }}
           />
         </div>
 
