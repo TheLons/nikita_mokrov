@@ -186,8 +186,22 @@ export function GlobalPlayer() {
         />
 
         {/* Progress: h-1 visual; on mobile modest invisible hit strip (ref) so it does not steal taps from controls */}
-        <div className="relative w-full h-1 group/bar max-md:px-10">
-          <div className="relative w-full h-full bg-[rgba(255,255,255,0.05)]">
+        <div className="relative w-full group/bar max-md:px-16 max-md:pt-6 max-md:pb-2 md:h-1">
+          <div className="relative w-full h-1 bg-[rgba(255,255,255,0.05)]">
+            {/* Mobile-only time indicators */}
+            <div 
+              className="absolute -left-12 top-1/2 -translate-y-1/2 md:hidden tabular-nums text-[#444444] text-[10px]"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              {formatTime(currentTime)}
+            </div>
+            <div 
+              className="absolute -right-12 top-1/2 -translate-y-1/2 md:hidden tabular-nums text-[#444444] text-[10px]"
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              {formatTime(duration)}
+            </div>
+
             <div className="pointer-events-none absolute inset-0">
               <div
                 className={`absolute left-0 top-0 h-full bg-[#F5F5F5] ${isScrubbing ? '' : 'transition-[width] duration-100 ease-linear'}`}
@@ -254,16 +268,16 @@ export function GlobalPlayer() {
 
           {/* Center/Right Controls Group */}
           <div className="flex items-center gap-4 md:gap-8">
-            {/* Time - hidden on very small mobile */}
+            {/* Time: current / total (visible only on desktop now as mobile has it on the progress bar) */}
             <span
-              className="shrink-0 tabular-nums hidden xs:inline"
+              className="shrink-0 tabular-nums hidden md:inline"
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: '11px',
                 color: '#444444',
                 letterSpacing: '0.04em',
                 minWidth: '85px',
-                textAlign: 'center'
+                textAlign: 'center',
               }}
             >
               {formatTime(currentTime)} / {formatTime(duration)}
