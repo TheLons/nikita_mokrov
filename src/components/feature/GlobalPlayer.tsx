@@ -82,9 +82,21 @@ export function GlobalPlayer() {
 
   const handleTimeUpdate = useCallback(() => {
     if (audioRef.current && !isScrubbing) {
-      setCurrentTime(audioRef.current.currentTime);
+      const current = audioRef.current.currentTime;
+      setCurrentTime(current);
       if (duration === 0 && audioRef.current.duration > 0 && isFinite(audioRef.current.duration)) {
         setDuration(audioRef.current.duration);
+      }
+
+      // Update Media Session position state
+      if ('mediaSession' in navigator && isFinite(audioRef.current.duration)) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: audioRef.current.duration,
+            playbackRate: audioRef.current.playbackRate,
+            position: current,
+          });
+        } catch (e) {}
       }
     }
   }, [duration, isScrubbing]);
@@ -154,6 +166,61 @@ export function GlobalPlayer() {
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  // Media Session API for background playback and native controls
+  useEffect(() => {
+    if (!activeTrack || !('mediaSession' in navigator)) return;
+
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: activeTrack.title,
+      artist: activeTrack.albumName,
+      album: activeTrack.albumName,
+      artwork: [
+        { src: activeTrack.coverImage, sizes: '96x96', type: 'image/png' },
+        { src: activeTrack.coverImage, sizes: '128x128', type: 'image/png' },
+        { src: activeTrack.coverImage, sizes: '192x192', type: 'image/png' },
+        { src: activeTrack.coverImage, sizes: '256x256', type: 'image/png' },
+        { src: activeTrack.coverImage, sizes: '384x384', type: 'image/png' },
+        { src: activeTrack.coverImage, sizes: '512x512', type: 'image/png' },
+      ],
+    });
+
+    const handlers = [
+      ['play', () => setIsPlaying(true)],
+      ['pause', () => setIsPlaying(false)],
+      ['previoustrack', null],
+      ['nexttrack', null],
+      ['seekto', (details: any) => {
+        if (audioRef.current && details.seekTime !== undefined) {
+          audioRef.current.currentTime = details.seekTime;
+          setCurrentTime(details.seekTime);
+        }
+      }],
+    ];
+
+    for (const [action, handler] of handlers) {
+      try {
+        navigator.mediaSession.setActionHandler(action as any, handler as any);
+      } catch (error) {
+        console.warn(`Media Session action "${action}" is not supported.`);
+      }
+    }
+
+    return () => {
+      for (const [action] of handlers) {
+        try {
+          navigator.mediaSession.setActionHandler(action as any, null);
+        } catch (error) {}
+      }
+    };
+  }, [activeTrack, setIsPlaying]);
+
+  // Update playback state in Media Session
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }
+  }, [isPlaying]);
 
   return createPortal(
     <div
