@@ -20,10 +20,20 @@ export function GlobalPlayer() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isScrubbing, setIsScrubbing] = useState(false);
+  const isIOS =
+    typeof navigator !== 'undefined' &&
+    (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
 
   // Initialize AudioContext and AnalyserNode once
   useEffect(() => {
     if (!audioRef.current || audioCtxRef.current) return;
+
+    // iOS Safari is more stable for background playback without WebAudio graph.
+    if (isIOS) {
+      setAnalyserNode(null);
+      return;
+    }
 
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
     const analyser = ctx.createAnalyser();
@@ -38,20 +48,8 @@ export function GlobalPlayer() {
     sourceRef.current = source;
     setAnalyserNode(analyser);
 
-    // iOS fix: resume context on visibility change to prevent glitches
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isPlaying) {
-        if (audioCtxRef.current?.state === 'suspended') {
-          audioCtxRef.current.resume();
-        }
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [setAnalyserNode, isPlaying]);
+    return () => {};
+  }, [isIOS, setAnalyserNode]);
 
   useEffect(() => {
     if (activeTrack) {
@@ -64,7 +62,7 @@ export function GlobalPlayer() {
   useEffect(() => {
     if (!audioRef.current || !activeTrack) return;
     
-    if (audioCtxRef.current?.state === 'suspended') {
+    if (!isIOS && audioCtxRef.current?.state === 'suspended') {
       audioCtxRef.current.resume();
     }
 
@@ -76,19 +74,19 @@ export function GlobalPlayer() {
         console.warn('Playback failed:', err);
         setIsPlaying(false);
       });
-  }, [activeTrack?.trackKey, setIsPlaying, activeTrack?.audioUrl]);
+  }, [activeTrack?.trackKey, setIsPlaying, activeTrack?.audioUrl, isIOS]);
 
   useEffect(() => {
     if (!audioRef.current) return;
     if (isPlaying && !isScrubbing) {
-      if (audioCtxRef.current?.state === 'suspended') {
+      if (!isIOS && audioCtxRef.current?.state === 'suspended') {
         audioCtxRef.current.resume();
       }
       audioRef.current.play().catch(() => {});
     } else {
       audioRef.current.pause();
     }
-  }, [isPlaying, isScrubbing]);
+  }, [isPlaying, isScrubbing, isIOS]);
 
   const handleTimeUpdate = useCallback(() => {
     if (audioRef.current && !isScrubbing) {
@@ -123,18 +121,16 @@ export function GlobalPlayer() {
   }, [setIsPlaying]);
 
   const togglePlay = useCallback(() => {
-    // Explicitly resume AudioContext on user gesture for iOS
-    if (audioCtxRef.current?.state === 'suspended') {
+    if (!isIOS && audioCtxRef.current?.state === 'suspended') {
       audioCtxRef.current.resume();
     }
     setIsPlaying(!isPlaying);
-  }, [isPlaying, setIsPlaying]);
+  }, [isIOS, isPlaying, setIsPlaying]);
 
   const seek = useCallback((clientX: number) => {
     if (!progressRef.current || !audioRef.current || duration === 0) return;
     
-    // Resume AudioContext on seek too
-    if (audioCtxRef.current?.state === 'suspended') {
+    if (!isIOS && audioCtxRef.current?.state === 'suspended') {
       audioCtxRef.current.resume();
     }
 
@@ -146,7 +142,7 @@ export function GlobalPlayer() {
     if (!scrubbingRef.current) {
       audioRef.current.currentTime = newTime;
     }
-  }, [duration]);
+  }, [duration, isIOS]);
 
   const commitScrub = useCallback(() => {
     if (audioRef.current) {
@@ -160,8 +156,7 @@ export function GlobalPlayer() {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (duration === 0) return;
 
-    // Resume AudioContext on pointer down for iOS
-    if (audioCtxRef.current?.state === 'suspended') {
+    if (!isIOS && audioCtxRef.current?.state === 'suspended') {
       audioCtxRef.current.resume();
     }
 
