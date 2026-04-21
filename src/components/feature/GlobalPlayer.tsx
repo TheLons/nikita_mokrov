@@ -186,30 +186,32 @@ export function GlobalPlayer() {
         />
 
         {/* Progress: h-1 visual; on mobile modest invisible hit strip (ref) so it does not steal taps from controls */}
-        <div className="relative w-full h-1 bg-[rgba(255,255,255,0.05)] group/bar">
-          <div className="pointer-events-none absolute inset-0">
+        <div className="relative w-full h-1 group/bar max-md:px-6">
+          <div className="relative w-full h-full bg-[rgba(255,255,255,0.05)]">
+            <div className="pointer-events-none absolute inset-0">
+              <div
+                className={`absolute left-0 top-0 h-full bg-[#F5F5F5] ${isScrubbing ? '' : 'transition-[width] duration-100 ease-linear'}`}
+                style={{ width: `${progress}%`, boxShadow: '0 0 10px rgba(245,245,245,0.3)' }}
+              />
+              <div
+                className={`pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-full bg-[#F5F5F5] shadow-lg transition-[width,height,margin,transform] duration-150 ease-out ${
+                  isScrubbing
+                    ? 'h-6 w-6 -ml-3 md:h-4 md:w-4 md:-ml-2'
+                    : 'h-5 w-5 -ml-2.5 md:h-3.5 md:w-3.5 md:-ml-[7px]'
+                } max-md:opacity-100 md:opacity-0 md:group-hover/bar:opacity-100 ${isScrubbing ? '!opacity-100' : ''}`}
+                style={{ left: `${progress}%` }}
+              />
+            </div>
             <div
-              className={`absolute left-0 top-0 h-full bg-[#F5F5F5] ${isScrubbing ? '' : 'transition-[width] duration-100 ease-linear'}`}
-              style={{ width: `${progress}%`, boxShadow: '0 0 10px rgba(245,245,245,0.3)' }}
-            />
-            <div
-              className={`pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-full bg-[#F5F5F5] shadow-lg transition-[width,height,margin,transform] duration-150 ease-out ${
-                isScrubbing
-                  ? 'h-5 w-5 -ml-[10px] md:h-4 md:w-4 md:-ml-2'
-                  : 'h-3.5 w-3.5 -ml-[7px]'
-              } max-md:opacity-100 md:opacity-0 md:group-hover/bar:opacity-100 ${isScrubbing ? '!opacity-100' : ''}`}
-              style={{ left: `${progress}%` }}
+              ref={progressRef}
+              className="absolute inset-x-0 top-1/2 -translate-y-1/2 cursor-pointer select-none max-md:h-4 md:h-6"
+              style={{ touchAction: 'none' }}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUpOrCancel}
+              onPointerCancel={handlePointerUpOrCancel}
             />
           </div>
-          <div
-            ref={progressRef}
-            className="absolute inset-x-0 top-0 cursor-pointer select-none max-md:h-6 md:bottom-0 md:h-auto"
-            style={{ touchAction: 'none' }}
-            onPointerDown={handlePointerDown}
-            onPointerMove={handlePointerMove}
-            onPointerUp={handlePointerUpOrCancel}
-            onPointerCancel={handlePointerUpOrCancel}
-          />
         </div>
 
         <div
