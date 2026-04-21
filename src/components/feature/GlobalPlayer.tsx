@@ -186,7 +186,7 @@ export function GlobalPlayer() {
         />
 
         {/* Progress: h-1 visual; on mobile modest invisible hit strip (ref) so it does not steal taps from controls */}
-        <div className="relative w-full h-1 group/bar max-md:px-6">
+        <div className="relative w-full h-1 group/bar max-md:px-10">
           <div className="relative w-full h-full bg-[rgba(255,255,255,0.05)]">
             <div className="pointer-events-none absolute inset-0">
               <div
