@@ -38,10 +38,20 @@ export function GlobalPlayer() {
     sourceRef.current = source;
     setAnalyserNode(analyser);
 
-    return () => {
-      // ctx.close(); // Don't close here, we want it to persist
+    // iOS fix: resume context on visibility change to prevent glitches
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isPlaying) {
+        if (audioCtxRef.current?.state === 'suspended') {
+          audioCtxRef.current.resume();
+        }
+      }
     };
-  }, [setAnalyserNode]);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [setAnalyserNode, isPlaying]);
 
   useEffect(() => {
     if (activeTrack) {
@@ -113,11 +123,21 @@ export function GlobalPlayer() {
   }, [setIsPlaying]);
 
   const togglePlay = useCallback(() => {
+    // Explicitly resume AudioContext on user gesture for iOS
+    if (audioCtxRef.current?.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
     setIsPlaying(!isPlaying);
   }, [isPlaying, setIsPlaying]);
 
   const seek = useCallback((clientX: number) => {
     if (!progressRef.current || !audioRef.current || duration === 0) return;
+    
+    // Resume AudioContext on seek too
+    if (audioCtxRef.current?.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+
     const rect = progressRef.current.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
     const newTime = ratio * duration;
@@ -139,6 +159,12 @@ export function GlobalPlayer() {
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     if (duration === 0) return;
+
+    // Resume AudioContext on pointer down for iOS
+    if (audioCtxRef.current?.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+
     scrubbingRef.current = true;
     setIsScrubbing(true);
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -243,13 +269,26 @@ export function GlobalPlayer() {
       >
         <audio
           ref={audioRef}
-          className="hidden"
           onTimeUpdate={handleTimeUpdate}
           onLoadedMetadata={handleLoadedMetadata}
           onDurationChange={handleLoadedMetadata}
           onEnded={handleEnded}
           preload="auto"
           crossOrigin="anonymous"
+          playsInline
+          style={{
+            position: 'absolute',
+            width: '1px',
+            height: '1px',
+            padding: '0',
+            margin: '-1px',
+            overflow: 'hidden',
+            clip: 'rect(0, 0, 0, 0)',
+            whiteSpace: 'nowrap',
+            border: '0',
+            pointerEvents: 'none',
+            opacity: '0',
+          }}
         />
 
         {/* Progress: h-1 visual; on mobile modest invisible hit strip (ref) so it does not steal taps from controls */}
