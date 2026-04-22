@@ -120,7 +120,7 @@ export const worksSections: WorkSection[] = [
           { number: '04', title: 'Active Matter: Main Menu Theme (Pt. IV)', /* year: '2022', */ audioUrl: 'https://res.cloudinary.com/djeosuwjn/video/upload/v1776346542/Loop_4_vcxxvf.mp3' },
           { number: '05', title: 'Active Matter: Location Theme — Exploration', /* year: '2022', */ audioUrl: 'https://res.cloudinary.com/djeosuwjn/video/upload/v1776346544/Location_1_beot48.mp3' },
           { number: '06', title: 'Active Matter: Location Theme — Tension', /* year: '2022', */ audioUrl: 'https://res.cloudinary.com/djeosuwjn/video/upload/v1776346544/Location_2_gaarpm.mp3' },
-          { number: '06', title: 'Active Matter: Location Theme — Combat', /* year: '2022', */ audioUrl: 'https://res.cloudinary.com/djeosuwjn/video/upload/v1776346541/Location_3_gsmkhq.mp3' },
+          { number: '07', title: 'Active Matter: Location Theme — Combat', /* year: '2022', */ audioUrl: 'https://res.cloudinary.com/djeosuwjn/video/upload/v1776346541/Location_3_gsmkhq.mp3' },
         ],
       },
     ],

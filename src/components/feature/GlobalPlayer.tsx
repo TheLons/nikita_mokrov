@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAudio } from '@/context/AudioContext';
 
@@ -20,6 +20,19 @@ export function GlobalPlayer() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isScrubbing, setIsScrubbing] = useState(false);
+  const [waveformBars, setWaveformBars] = useState<number[]>([]);
+  const [displayProgress, setDisplayProgress] = useState(0);
+  const [isMobileView, setIsMobileView] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+  const waveformCache = useRef<Record<string, number[]>>({});
+  const animationRef = useRef<number>(0);
+  
+  // Update mobile view state on resize
+  useEffect(() => {
+    const handleResize = () => setIsMobileView(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   const isIOS =
     typeof navigator !== 'undefined' &&
     (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -109,6 +122,20 @@ export function GlobalPlayer() {
     }
   }, [duration, isScrubbing]);
 
+  // Smooth animation loop for progress
+  useEffect(() => {
+    const updateProgress = () => {
+      if (audioRef.current && duration > 0) {
+        const time = scrubbingRef.current ? pendingSeekRef.current : audioRef.current.currentTime;
+        setDisplayProgress((time / duration) * 100);
+      }
+      animationRef.current = requestAnimationFrame(updateProgress);
+    };
+
+    animationRef.current = requestAnimationFrame(updateProgress);
+    return () => cancelAnimationFrame(animationRef.current);
+  }, [duration]);
+
   const handleLoadedMetadata = useCallback(() => {
     if (audioRef.current && isFinite(audioRef.current.duration)) {
       setDuration(audioRef.current.duration);
@@ -187,6 +214,75 @@ export function GlobalPlayer() {
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  const currentWaveform = useMemo(() => {
+    if (waveformBars.length === 0) return [];
+    const targetCount = isMobileView ? 60 : 150;
+    const step = Math.floor(waveformBars.length / targetCount);
+    const sampled = [];
+    for (let i = 0; i < targetCount; i++) {
+      sampled.push(waveformBars[i * step] || 10);
+    }
+    return sampled;
+  }, [waveformBars, isMobileView]);
+
+  // Real audio analysis to generate waveform
+  useEffect(() => {
+    if (!activeTrack?.audioUrl) return;
+    
+    const trackKey = activeTrack.trackKey || activeTrack.audioUrl;
+    
+    if (waveformCache.current[trackKey]) {
+      setWaveformBars(waveformCache.current[trackKey]);
+      return;
+    }
+
+    // Default placeholder bars while loading
+    setWaveformBars(new Array(180).fill(15));
+
+    const analyzeAudio = async () => {
+      try {
+        const response = await fetch(activeTrack.audioUrl);
+        const arrayBuffer = await response.arrayBuffer();
+        
+        const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const audioBuffer = await tempCtx.decodeAudioData(arrayBuffer);
+        await tempCtx.close();
+        
+        const channelData = audioBuffer.getChannelData(0);
+        const barsCount = 300; // Generate high-res base
+        const samplesPerBar = Math.floor(channelData.length / barsCount);
+        const rawBars: number[] = [];
+        let maxPeak = 0;
+
+        for (let i = 0; i < barsCount; i++) {
+          let peak = 0;
+          const start = i * samplesPerBar;
+          for (let j = 0; j < samplesPerBar; j += 15) {
+            const val = Math.abs(channelData[start + j]);
+            if (val > peak) peak = val;
+          }
+          rawBars.push(peak);
+          if (peak > maxPeak) maxPeak = peak;
+        }
+
+        const normalizedBars = rawBars.map(peak => {
+          const ratio = maxPeak > 0 ? peak / maxPeak : 0;
+          const adjusted = Math.pow(ratio, 0.7); 
+          return Math.max(8, Math.round(adjusted * 100));
+        });
+
+        waveformCache.current[trackKey] = normalizedBars;
+        setWaveformBars(normalizedBars);
+      } catch (err) {
+        console.error('Failed to analyze audio for waveform:', err);
+        const fallback = new Array(300).fill(0).map(() => 20 + Math.random() * 40);
+        setWaveformBars(fallback);
+      }
+    };
+
+    analyzeAudio();
+  }, [activeTrack]);
 
   // Media Session API for background playback and native controls
   useEffect(() => {
@@ -286,40 +382,62 @@ export function GlobalPlayer() {
           }}
         />
 
-        {/* Progress: h-1 visual; on mobile modest invisible hit strip (ref) so it does not steal taps from controls */}
-        <div className="relative w-full group/bar max-md:px-16 max-md:pt-6 max-md:pb-2 md:h-1">
-          <div className="relative w-full h-1 bg-[rgba(255,255,255,0.05)]">
-            {/* Mobile-only time indicators */}
+        <div ref={progressRef} className="relative w-full group/bar px-10 md:px-14 pt-4 pb-2">
+          <div className="relative w-full h-10 md:h-14">
+            {/* Time indicators */}
             <div 
-              className="absolute -left-12 top-1/2 -translate-y-1/2 md:hidden tabular-nums text-[#444444] text-[10px]"
+              className="absolute -left-8 md:-left-11 top-1/2 -translate-y-1/2 tabular-nums text-[#444444] text-[10px]"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
               {formatTime(currentTime)}
             </div>
             <div 
-              className="absolute -right-12 top-1/2 -translate-y-1/2 md:hidden tabular-nums text-[#444444] text-[10px]"
+              className="absolute -right-8 md:-right-11 top-1/2 -translate-y-1/2 tabular-nums text-[#444444] text-[10px]"
               style={{ fontFamily: "'JetBrains Mono', monospace" }}
             >
               {formatTime(duration)}
             </div>
 
             <div className="pointer-events-none absolute inset-0">
+              {/* Base Waveform (Background / Inactive) */}
+              <div className="absolute inset-0 flex items-center gap-[1px] md:gap-[2px] px-[1px]">
+                {currentWaveform.map((height, index) => (
+                  <span
+                    key={`wave-base-${index}`}
+                    className="flex-1 rounded-full bg-[rgba(255,255,255,0.12)]"
+                    style={{ height: `${height}%`, minHeight: '2px' }}
+                  />
+                ))}
+              </div>
+
+              {/* Active Waveform (Progress) - Identical structure, revealed by clip-path */}
               <div
-                className={`absolute left-0 top-0 h-full bg-[#F5F5F5] ${isScrubbing ? '' : 'transition-[width] duration-100 ease-linear'}`}
-                style={{ width: `${progress}%`, boxShadow: '0 0 10px rgba(245,245,245,0.3)' }}
-              />
+                className="absolute inset-0 flex items-center gap-[1px] md:gap-[2px] px-[1px]"
+                style={{ 
+                  clipPath: `inset(0 ${100 - displayProgress}% 0 0)`,
+                  WebkitClipPath: `inset(0 ${100 - displayProgress}% 0 0)`
+                }}
+              >
+                {currentWaveform.map((height, index) => (
+                  <span
+                    key={`wave-active-${index}`}
+                    className="flex-1 rounded-full bg-[#F5F5F5]"
+                    style={{
+                      height: `${height}%`,
+                      minHeight: '2px',
+                    }}
+                  />
+                ))}
+              </div>
+
+              {/* Progress Line and Handle */}
               <div
-                className={`pointer-events-none absolute top-1/2 -translate-y-1/2 rounded-full bg-[#F5F5F5] shadow-lg transition-[width,height,margin,transform] duration-150 ease-out ${
-                  isScrubbing
-                    ? 'h-6 w-6 -ml-3 md:h-4 md:w-4 md:-ml-2'
-                    : 'h-5 w-5 -ml-2.5 md:h-3.5 md:w-3.5 md:-ml-[7px]'
-                } max-md:opacity-100 md:opacity-0 md:group-hover/bar:opacity-100 ${isScrubbing ? '!opacity-100' : ''}`}
-                style={{ left: `${progress}%` }}
+                className="absolute top-0 bottom-0 w-px bg-[#F5F5F5] opacity-50 z-10"
+                style={{ left: `${displayProgress}%` }}
               />
             </div>
             <div
-              ref={progressRef}
-              className="absolute inset-x-0 top-1/2 -translate-y-1/2 cursor-pointer select-none max-md:h-4 md:h-6"
+              className="absolute inset-0 cursor-pointer select-none"
               style={{ touchAction: 'none' }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
@@ -334,14 +452,14 @@ export function GlobalPlayer() {
           style={{
             paddingLeft: 'clamp(16px, 3vw, 40px)',
             paddingRight: 'clamp(16px, 3vw, 40px)',
-            height: 'clamp(64px, 8vh, 80px)',
+            height: 'clamp(70px, 10vh, 90px)',
           }}
         >
           {/* Left: Track info */}
           <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
             {/* Cover thumbnail */}
             {activeTrack && (
-              <div className="shrink-0 w-11 h-11 md:w-13 md:h-13 overflow-hidden rounded-sm shadow-lg">
+              <div className="shrink-0 w-12 h-12 md:w-14 md:h-14 overflow-hidden rounded-sm shadow-lg">
                 <img
                   src={activeTrack.coverImage}
                   alt=""
@@ -354,13 +472,13 @@ export function GlobalPlayer() {
             <div className="flex flex-col gap-0.5 min-w-0">
               <span
                 className="text-[#F5F5F5] truncate font-medium"
-                style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 'clamp(13px, 1.2vw, 15px)' }}
+                style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 'clamp(14px, 1.3vw, 16px)' }}
               >
                 {activeTrack?.title}
               </span>
               <span
                 className="text-[#666666] truncate"
-                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 'clamp(10px, 0.9vw, 11px)', letterSpacing: '0.04em' }}
+                style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 'clamp(11px, 1vw, 12px)', letterSpacing: '0.04em' }}
               >
                 {activeTrack?.albumName}
               </span>
@@ -369,28 +487,13 @@ export function GlobalPlayer() {
 
           {/* Center/Right Controls Group */}
           <div className="flex items-center gap-4 md:gap-8">
-            {/* Time: current / total (visible only on desktop now as mobile has it on the progress bar) */}
-            <span
-              className="shrink-0 tabular-nums hidden md:inline"
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: '11px',
-                color: '#444444',
-                letterSpacing: '0.04em',
-                minWidth: '85px',
-                textAlign: 'center',
-              }}
-            >
-              {formatTime(currentTime)} / {formatTime(duration)}
-            </span>
-
             {/* Play / Pause button */}
             <button
               onClick={togglePlay}
               className="shrink-0 flex items-center justify-center cursor-pointer transition-all hover:scale-105 active:scale-95"
               style={{ 
-                width: '42px', 
-                height: '42px', 
+                width: '46px', 
+                height: '46px', 
                 background: 'none', 
                 border: '1px solid rgba(255,255,255,0.1)', 
                 borderRadius: '50%',
@@ -399,12 +502,12 @@ export function GlobalPlayer() {
               aria-label={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
-                <svg width="12" height="14" viewBox="0 0 10 12" fill="none">
+                <svg width="14" height="16" viewBox="0 0 10 12" fill="none">
                   <rect x="0" y="0" width="3" height="12" fill="#F5F5F5" />
                   <rect x="7" y="0" width="3" height="12" fill="#F5F5F5" />
                 </svg>
               ) : (
-                <svg width="12" height="14" viewBox="0 0 10 12" fill="none" style={{ marginLeft: '1px' }}>
+                <svg width="14" height="16" viewBox="0 0 10 12" fill="none" style={{ marginLeft: '1px' }}>
                   <polygon points="1,0 10,6 1,12" fill="#F5F5F5" />
                 </svg>
               )}
